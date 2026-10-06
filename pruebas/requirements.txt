@@ -1,3 +1,4 @@
-pytest 
-pytest-cov 
-pytest-html 
+pytest
+pytest-cov
+pytest-html
+playwright
