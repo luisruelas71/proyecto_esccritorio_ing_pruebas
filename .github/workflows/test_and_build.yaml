@@ -1,0 +1,28 @@
+name: test_and_build
+
+on:
+  push:
+    branches: [ "main" ]
+
+
+permissions:
+  contents: read
+
+jobs:
+  test_and_build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Configurar Python 3.14.8
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.14.8"
+    - name: Install dependencies
+      run: |
+       pip install -r requirements.txt
+    - name: Test with pytest
+      working-directory: pruebas
+      run: |
+        python -m pytest -v --cov=. --cov-report=html --html=report.html 
