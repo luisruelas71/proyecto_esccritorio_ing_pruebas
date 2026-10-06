@@ -11,7 +11,7 @@ permissions:
 jobs:
   test_and_build:
 
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
@@ -24,7 +24,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r pruebas/requirements.txt
         playwright install
+
+    - name: Start local web server
+      run: |
+        python -m http.server 8080 --directory . &
+        sleep 3 # Espera a que encienda
+    
+    
     - name: pruebas del proyecto
       working-directory: pruebas
       run: |
         python -m pytest -v --cov=. --cov-report=html --html=report.html 
+
+    
