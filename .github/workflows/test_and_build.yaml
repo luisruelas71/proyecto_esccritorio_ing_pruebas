@@ -54,7 +54,7 @@ jobs:
       - name: Instalar Newman
         run: npm install -g newman
 
-      - name: Iniciar IIS Express
+      - name: Iniciar IIS Express en Puerto 44373 (HTTPS)
         shell: pwsh
         run: |
           $iisExpress = "${env:ProgramFiles}\IIS Express\iisexpress.exe"
@@ -72,16 +72,12 @@ jobs:
       - name: Esperar aplicación web
         shell: pwsh
         run: |
-          $url = "https://localhost:44373/vistas/Login/Login"         
+          [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}$url = "https://localhost:44373/vistas/Login/Login"         
           $timeout = [DateTime]::UtcNow.AddMinutes(2)
 
           do {
             try {
-              $response = Invoke-WebRequest `
-                -Uri $url `
-                -UseBasicParsing `
-                -TimeoutSec 5
-
+              $response = Invoke-WebRequest -Uri$url -UseBasicParsing -TimeoutSec 5
               if ($response.StatusCode -ge 200 -and$response.StatusCode -lt 500) {
                 Write-Host "La aplicación está disponible."
                 exit 0
@@ -107,3 +103,10 @@ jobs:
             -v `
             --html=report.html `
             --self-contained-html
+
+      - name: Subir reporte
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-pruebas
+          path: report.html
