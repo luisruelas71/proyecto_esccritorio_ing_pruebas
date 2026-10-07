@@ -22,9 +22,11 @@ jobs:
 
       - name: Restaurar paquetes NuGet
         run: nuget restore Crud.WebForm.sln
+        working-directory: ./Crud.WebForm-master 
 
       - name: Compilar Solución con MSBuild
         run: msbuild Crud.WebForm.sln /p:Configuration=Debug
+        working-directory: ./Crud.WebForm-master
 
       - name: Configurar Node.js para Newman
         uses: actions/setup-node@v4
