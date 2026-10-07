@@ -65,7 +65,7 @@ jobs:
       - name: Esperar aplicación web
         shell: pwsh
         run: |
-          $url = "http://127.0.0.1:8080/vistas/Login/Login"
+          $url = "https://127.0.0.144373/vistas/Login/Login"
           $timeout = [DateTime]::UtcNow.AddMinutes(2)
 
           do {

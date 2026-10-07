@@ -2,7 +2,7 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-BASE_URL = "http://localhost:8080/vistas/Login/Login"
+BASE_URL = "https://localhost:44373/vistas/Login/Login"
 
 TXT_USUARIO = "input[id$='txtUser']"
 TXT_PASSWORD = "input[id$='txtPass']"

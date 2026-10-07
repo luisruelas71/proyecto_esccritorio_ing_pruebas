@@ -1,7 +1,7 @@
 import pytest
 from playwright.sync_api import Page, expect
 
-BASE_URL = "http://localhost:8080/vistas/Productos/Productos"
+BASE_URL = "https://localhost:44373/vistas/Productos/Productos"
 
 TXT_CLAVE_PRODUCTO = "input[id$='txtClave']"
 BTN_BUSCAR_PRODUCTO = "input[id$='btnConsulta']"
