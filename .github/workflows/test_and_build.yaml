@@ -1,67 +1,93 @@
-name: test_and_build
+name: test-and-build
 
 on:
   push:
-    branches: [ "main" ]
-
-
-permissions:
-  contents: read
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-  test_and_build:
-
+  build-and-test:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
+      - name: Descargar código
         uses: actions/checkout@v4
 
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14.8"
+          python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Configurar MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Configurar NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restaurar paquetes .NET
+        run: nuget restore Crud.WebForm.slnx
+
+      - name: Compilar aplicación
+        run: >
+          msbuild Crud.WebForm.slnx
+          /p:Configuration=Release
+          /p:Platform="Any CPU"
+          /verbosity:minimal
+
+      - name: Instalar dependencias Python
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install -r pruebas/requirements.txt
-          playwright install
+          python -m pip install -r pruebas/requirements.txt
+          python -m playwright install chromium
 
-      - name: Iniciar servidor IIS Express
-        shell: powershell
+      - name: Ejecutar pruebas unitarias
         run: |
-          $rutaProyecto = "$env:GITHUB_WORKSPACE\Crud.WebForm"
-           # Inicia IIS Express en segundo plano apuntando al puerto 8080
-          Start-Process "C:\Program Files\IIS Express\iisexpress.exe" -ArgumentList "/path:$rutaProyecto /port:8080"  
-           # Damos unos segundos para que el servidor encienda por completo
-          Start-Sleep -Seconds 5
+          python -m pytest pruebas/test_unit_nombre.py pruebas/test_producto_cantidad.py -v
 
-      - name: Test with pytest
-        run: |
-          python -m pytest pruebas/test_ui_consulta_usuarios.py -v --headed --slowmo 1000
-          python -m pytest pruebas/test_ui_consulta_usuarios.py -v --cov=. --cov-report=term --cov-report=html --html=report.html
-    
+      # Aquí debe instalarse e inicializarse MySQL.
+      # También debe cargarse el esquema y los datos de la base ferreteria.
+
       - name: Iniciar IIS Express
         shell: pwsh
         run: |
-          Start-Process `
-          "${env:ProgramFiles}\IIS Express\iisexpress.exe" `
-          -ArgumentList "/path:${env:GITHUB_WORKSPACE}\Crud.WebForm", "/port:8080"
+          $iisExpress = "${env:ProgramFiles}\IIS Express\iisexpress.exe"
+          $webRoot = Join-Path $env:GITHUB_WORKSPACE "Crud.WebForm"
 
-      - name: Esperar servidor
+          if (-not (Test-Path $iisExpress)) {
+            throw "No se encontró IIS Express en $iisExpress"
+          }
+
+          Start-Process `
+            -FilePath $iisExpress `
+            -ArgumentList "/path:$webRoot", "/port:8080" `
+            -PassThru
+
+      - name: Esperar aplicación web
         shell: pwsh
         run: |
-          $url = "http://localhost:8080/vistas/Login/Login"
-          for ($i = 0; $i -lt 40; $i++) {
+          $url = "http://127.0.0.1:8080/vistas/Login/Login"
+          $timeout = [DateTime]::UtcNow.AddMinutes(2)
+
+          do {
             try {
-              Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 5
+              $response = Invoke-WebRequest `
+                -Uri $url `
+                -UseBasicParsing `
+                -TimeoutSec 5
+
+              if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+                Write-Host "La aplicación está disponible."
+                exit 0
+              }
             }
             catch {
               Start-Sleep -Seconds 3
             }
-          }
-          exit 0
+          } while ([DateTime]::UtcNow -lt $timeout)
+
+          throw "La aplicación no respondió en $url"
 
       - name: Ejecutar pruebas UI
         run: |
@@ -69,4 +95,13 @@ jobs:
             pruebas/test_ui_login.py `
             pruebas/test_ui_consulta_usuarios.py `
             pruebas/test_ui_consulta_productos.py `
-            -v
+            -v `
+            --html=report.html `
+            --self-contained-html
+
+      - name: Subir reporte
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-pruebas
+          path: report.html
