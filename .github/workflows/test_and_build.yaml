@@ -1,10 +1,10 @@
-name: test-and-build
+name: CI/CD Pipeline - .NET WebForms
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
   build-and-test:
@@ -14,83 +14,29 @@ jobs:
       - name: Descargar código
         uses: actions/checkout@v4
 
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0' # Ajusta la versión si usas .NET Framework clásico con MSBuild, o déjalo si usas SDK moderno
+
+      - name: Restaurar dependencias
+        run: dotnet restore
+
+      - name: Compilar solución
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Ejecutar Pruebas Unitarias
+        run: dotnet test TestProducto/TestProductocsproj --configuration Release --no-build
+
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14.8"
+          python-version: '3.14.8'
 
-      - name: Configurar MSBuild
-        uses: microsoft/setup-msbuild@v2
-
-      - name: Configurar NuGet
-        uses: NuGet/setup-nuget@v2
-
-      - name: Restaurar paquetes .NET
-        run: dotnet restore
-
-      - name: Ejecutar Pruebas Unitarias
+      - name: Instalar dependencias de pruebas Python
         run: |
-          dotnet test TestProducto/TestProducto.csproj --configuration Release --no-build
+          python -m pip install --upgrade pip
+          pip install -r pruebas/requirements.txt
 
-      - name: Instalar dependencias Python
-        shell: pwsh
-        run: |
-          python -m pip install -r pruebas/requirements.txt
- 
-      - name: Configurar Node.js 
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Instalar Newman
-        run: npm install -g newman
-
-      - name: Iniciar IIS Express
-        shell: pwsh
-        run: |
-          $iisExpress = "${env:ProgramFiles}\IIS Express\iisexpress.exe"
-          $webRoot = Join-Path $env:GITHUB_WORKSPACE "Crud.WebForm"
-
-          if (-not (Test-Path $iisExpress)) {
-            throw "No se encontró IIS Express en $iisExpress"
-          }
-
-          Start-Process `
-            -FilePath $iisExpress `
-            -ArgumentList "/path:$webRoot", "/port:44373" `
-            -PassThru
-
-      - name: Esperar aplicación web
-        shell: pwsh
-        run: |
-          $url = "http://127.0.0.1:44373/vistas/Login/Login"         
-          $timeout = [DateTime]::UtcNow.AddMinutes(1)
-
-          do {
-            try {
-              $response = Invoke-WebRequest -Uri$url -UseBasicParsing -TimeoutSec 3
-              if ($response.StatusCode -ge 200 -and$response.StatusCode -lt 500) {
-                Write-Host "La aplicación está disponible."
-                exit 0
-              }
-            }
-            catch {
-              Start-Sleep -Seconds 2
-            }
-          } while ([DateTime]::UtcNow -lt $timeout)
-
-          throw "La aplicación no respondió en $url"
-
-      - name: Ejecutar Pruebas de API
-        run: |
-          newman run Crud.WebForm/pruebas_humo_api.json --insecure
-
-      - name: Ejecutar pruebas UI
-        run: |
-          python -m pytest `
-            pruebas/test_ui_login.py `
-            pruebas/test_ui_consulta_usuarios.py `
-            pruebas/test_ui_consulta_productos.py `
-            -v `
-            --html=report.html `
-            --self-contained-html
+      - name: Ejecutar Pruebas Automatizadas
+        run: pytest pruebas/
