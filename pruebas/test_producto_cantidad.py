@@ -39,3 +39,5 @@ def test_cantidad_caracteres_especiales():
 
 def test_cantidad_con_letras():
     assert validar_cantidad_producto("uno") == "La cantidad debe ser un número válido"
+
+    #c
