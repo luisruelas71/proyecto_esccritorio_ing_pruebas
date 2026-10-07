@@ -1,4 +1,4 @@
-name: Test and Build
+name: Test and Build Pipeline
 
 on:
   push:
@@ -8,13 +8,25 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
       - name: Checkout del código
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js (para ejecutar Newman)
+      - name: Configurar MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Configurar NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restaurar paquetes NuGet
+        run: nuget restore Crud.WebForm.sln
+
+      - name: Compilar Solución con MSBuild
+        run: msbuild Crud.WebForm.sln /p:Configuration=Debug
+
+      - name: Configurar Node.js para Newman
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -22,24 +34,6 @@ jobs:
       - name: Instalar Newman
         run: npm install -g newman
 
-      - name: Configurar .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Compilar e Iniciar servidor local
-        run: |
-          dotnet build
-          dotnet run --project Crud.WebForm/Crud.WebForm.csproj --urls "https://localhost:44373" &
-        env:
-          ASPNETCORE_ENVIRONMENT: "Development"
-
-      - name: Esperar a que el servidor esté activo
-        run: npx wait-on https://localhost:44373 --timeout 30000
-
       - name: Ejecutar Pruebas de Postman con Newman
         run: |
-          newman run pruebas_humo_api.json \
-            --env-var "BASE_URL_SCHEME=https" \
-            --env-var "BASE_URL_HOST=localhost:44373" \
-            --insecure
+          newman run pruebas_humo_api.json --env-var "BASE_URL_SCHEME=https" --env-var "BASE_URL_HOST=localhost:44373" --insecure
