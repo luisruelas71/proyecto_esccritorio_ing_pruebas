@@ -1,70 +1,20 @@
-name: test-and-build
+name: Test and Build
 
 on:
   push:
-    branches: [main]
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [main]
-  
+    branches: [ "main", "master" ]
 
 jobs:
   build-and-test:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Descargar código
+      - name: Checkout del código
         uses: actions/checkout@v4
 
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Configurar .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "10.0.x"
-
-      - name: Configurar MSBuild
-        uses: microsoft/setup-msbuild@v2
-
-      - name: Configurar NuGet
-        uses: NuGet/setup-nuget@v2
-
-      - name: Restaurar paquetes .NET
-        shell: pwsh
-        run: |
-          $packagesDirectory = Join-Path $env:GITHUB_WORKSPACE "packages"
-          Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter packages.config |
-            ForEach-Object {
-              nuget restore $_.FullName -PackagesDirectory $packagesDirectory -NonInteractive
-            }
-          nuget install MySql.Data -Version 26.7.0 `
-            -OutputDirectory $packagesDirectory -NonInteractive
-          $mysqlAssembly = Join-Path $packagesDirectory "MySql.Data.26.7.0\lib\net462\MySql.Data.dll"
-          if (-not (Test-Path $mysqlAssembly)) {
-            throw "No se restauró MySql.Data.dll en $mysqlAssembly"
-          }
-          dotnet restore TestProducto\TestProducto.csproj
-
-      - name: Compilar proyectos
-        shell: pwsh
-        run: |
-          msbuild Crud.WebForm\Crud.WebForm.csproj /t:Build /p:Configuration=Release /p:Platform="Any CPU"
-          dotnet build TestProducto\TestProducto.csproj --configuration Release --no-restore
-
-      - name: Ejecutar Pruebas Unitarias
-        shell: pwsh
-        run: |
-          dotnet test TestProducto\TestProducto.csproj --configuration Release --no-build --no-restore
-
-      - name: Instalar dependencias Python
-        shell: pwsh
-        run: |
-          python -m pip install -r pruebas/requirements.txt
-          python -m playwright install chromium
-
-      - name: Configurar Node.js
+      - name: Configurar Node.js (para ejecutar Newman)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -72,110 +22,24 @@ jobs:
       - name: Instalar Newman
         run: npm install -g newman
 
-      - name: Iniciar IIS Express
-        shell: pwsh
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Compilar e Iniciar servidor local
+        run: |
+          dotnet build
+          dotnet run --project Crud.WebForm/Crud.WebForm.csproj --urls "https://localhost:44373" &
         env:
-          WEB_PORT: 44373
+          ASPNETCORE_ENVIRONMENT: "Development"
+
+      - name: Esperar a que el servidor esté activo
+        run: npx wait-on https://localhost:44373 --timeout 30000
+
+      - name: Ejecutar Pruebas de Postman con Newman
         run: |
-          $iisExpress = "${env:ProgramFiles}\IIS Express\iisexpress.exe"
-          $webRoot = Join-Path $env:GITHUB_WORKSPACE "Crud.WebForm"
-          $sourceConfig = Join-Path $env:ProgramFiles "IIS Express\AppServer\applicationhost.config"
-          $ciConfig = Join-Path $env:RUNNER_TEMP "applicationhost.config"
-          $iisOutput = Join-Path $env:RUNNER_TEMP "iisexpress.out.log"
-          $iisError = Join-Path $env:RUNNER_TEMP "iisexpress.err.log"
-
-          if (-not (Test-Path $iisExpress)) {
-            throw "No se encontró IIS Express en $iisExpress"
-          }
-          if (-not (Test-Path $sourceConfig)) {
-            throw "No se encontró la configuración de IIS Express en $sourceConfig"
-          }
-
-          [xml]$config = Get-Content -Raw $sourceConfig
-          $site = $config.configuration.'system.applicationHost'.sites.site |
-            Where-Object { $_.name -eq "Crud.WebForm" }
-          if ($null -eq $site) {
-            $site = $config.CreateElement("site")
-            $site.SetAttribute("name", "Crud.WebForm")
-            $site.SetAttribute("id", "2")
-            $site.SetAttribute("serverAutoStart", "true")
-
-            $application = $config.CreateElement("application")
-            $application.SetAttribute("path", "/")
-            $application.SetAttribute("applicationPool", "Clr4IntegratedAppPool")
-            $virtualDirectory = $config.CreateElement("virtualDirectory")
-            $virtualDirectory.SetAttribute("path", "/")
-            $virtualDirectory.SetAttribute("physicalPath", $webRoot)
-            [void]$application.AppendChild($virtualDirectory)
-            [void]$site.AppendChild($application)
-
-            $bindings = $config.CreateElement("bindings")
-            [void]$site.AppendChild($bindings)
-            [void]$config.configuration.'system.applicationHost'.sites.AppendChild($site)
-          } else {
-            $site.application.virtualDirectory.physicalPath = $webRoot
-          }
-
-          $httpBinding = $site.bindings.binding |
-            Where-Object { $_.protocol -eq "http" -and $_.bindingInformation -eq "*:$($env:WEB_PORT):localhost" }
-          if ($null -eq $httpBinding) {
-            $binding = $config.CreateElement("binding")
-            $binding.SetAttribute("protocol", "http")
-            $binding.SetAttribute("bindingInformation", "*:$($env:WEB_PORT):localhost")
-            [void]$site.bindings.AppendChild($binding)
-          }
-          $config.Save($ciConfig)
-
-          $iisProcess = Start-Process `
-            -FilePath $iisExpress `
-            -ArgumentList "/config:$ciConfig", "/site:Crud.WebForm" `
-            -RedirectStandardOutput $iisOutput `
-            -RedirectStandardError $iisError `
-            -PassThru
-          Start-Sleep -Seconds 3
-          if ($iisProcess.HasExited) {
-            Write-Host "Salida de IIS Express:"
-            if (Test-Path $iisOutput) { Get-Content $iisOutput }
-            if (Test-Path $iisError) { Get-Content $iisError }
-            throw "IIS Express terminó con código $($iisProcess.ExitCode)"
-          }
-
-      - name: Esperar aplicación web
-        shell: pwsh
-        env:
-          WEB_PORT: 44373
-        run: |
-          $url = "http://localhost:$env:WEB_PORT/vistas/Login/Login"
-          $timeout = [DateTime]::UtcNow.AddMinutes(1)
-
-          do {
-            try {
-              $response = Invoke-WebRequest -Uri $url -UseBasicParsing -SkipCertificateCheck -TimeoutSec 3
-              if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
-                Write-Host "La aplicación está disponible."
-                exit 0
-              }
-            }
-            catch {
-              Start-Sleep -Seconds 2
-            }
-          } while ([DateTime]::UtcNow -lt $timeout)
-
-          throw "La aplicación no respondió en $url"
-
-      - name: Ejecutar Pruebas de API
-        run: |
-          newman run Crud.WebForm/pruebas_humo_api.json --env-var "baseUrl=http://localhost:44373"
-
-      - name: Ejecutar pruebas UI
-        env:
-          BASE_URL_SCHEME: http
-          BASE_URL_HOST: localhost:44373
-        run: |
-          python -m pytest `
-            pruebas/test_ui_login.py `
-            pruebas/test_ui_consulta_usuarios.py `
-            pruebas/test_ui_consulta_productos.py `
-            -v `
-            --html=report.html `
-            --self-contained-html
+          newman run pruebas_humo_api.json \
+            --env-var "BASE_URL_SCHEME=https" \
+            --env-var "BASE_URL_HOST=localhost:44373" \
+            --insecure
