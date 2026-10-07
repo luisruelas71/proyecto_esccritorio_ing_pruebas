@@ -1,10 +1,11 @@
-name: CI/CD Pipeline - .NET WebForms
+name: test-and-build
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  
 
 jobs:
   build-and-test:
@@ -14,29 +15,105 @@ jobs:
       - name: Descargar código
         uses: actions/checkout@v4
 
-      - name: Configurar .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0' # Ajusta la versión si usas .NET Framework clásico con MSBuild, o déjalo si usas SDK moderno
-
-      - name: Restaurar dependencias
-        run: dotnet restore
-
-      - name: Compilar solución
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Ejecutar Pruebas Unitarias
-        run: dotnet test TestProducto/TestProductocsproj --configuration Release --no-build
-
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.14.8'
+          python-version: "3.12"
 
-      - name: Instalar dependencias de pruebas Python
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Configurar MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Configurar NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restaurar paquetes .NET
+        shell: pwsh
         run: |
-          python -m pip install --upgrade pip
-          pip install -r pruebas/requirements.txt
+          dotnet restore TestProducto\TestProducto.csproj
 
-      - name: Ejecutar Pruebas Automatizadas
-        run: pytest pruebas/
+      - name: Compilar proyectos
+        shell: pwsh
+        run: |
+          msbuild Crud.WebForm\Crud.WebForm.csproj /t:Build /p:Configuration=Release /p:Platform="Any CPU"
+          dotnet build TestProducto\TestProducto.csproj --configuration Release --no-restore
+
+      - name: Ejecutar Pruebas Unitarias
+        shell: pwsh
+        run: |
+          dotnet test TestProducto\TestProducto.csproj --configuration Release --no-build --no-restore
+
+      - name: Instalar dependencias Python
+        shell: pwsh
+        run: |
+          python -m pip install -r pruebas/requirements.txt
+          python -m playwright install chromium
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar Newman
+        run: npm install -g newman
+
+      - name: Iniciar IIS Express
+        shell: pwsh
+        env:
+          WEB_PORT: 8080
+        run: |
+          $iisExpress = "${env:ProgramFiles}\IIS Express\iisexpress.exe"
+          $webRoot = Join-Path $env:GITHUB_WORKSPACE "Crud.WebForm"
+
+          if (-not (Test-Path $iisExpress)) {
+            throw "No se encontró IIS Express en $iisExpress"
+          }
+
+          Start-Process `
+            -FilePath $iisExpress `
+            -ArgumentList "/path:$webRoot", "/port:$env:WEB_PORT" `
+            -PassThru
+
+      - name: Esperar aplicación web
+        shell: pwsh
+        env:
+          WEB_PORT: 8080
+        run: |
+          $url = "http://127.0.0.1:$env:WEB_PORT/vistas/Login/Login"
+          $timeout = [DateTime]::UtcNow.AddMinutes(1)
+
+          do {
+            try {
+              $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3
+              if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+                Write-Host "La aplicación está disponible."
+                exit 0
+              }
+            }
+            catch {
+              Start-Sleep -Seconds 2
+            }
+          } while ([DateTime]::UtcNow -lt $timeout)
+
+          throw "La aplicación no respondió en $url"
+
+      - name: Ejecutar Pruebas de API
+        run: |
+          newman run Crud.WebForm/pruebas_humo_api.json --insecure --env-var "baseUrl=http://127.0.0.1:8080"
+
+      - name: Ejecutar pruebas UI
+        env:
+          BASE_URL_SCHEME: http
+          BASE_URL_HOST: 127.0.0.1:8080
+        run: |
+          python -m pytest `
+            pruebas/test_ui_login.py `
+            pruebas/test_ui_consulta_usuarios.py `
+            pruebas/test_ui_consulta_productos.py `
+            -v `
+            --html=report.html `
+            --self-contained-html

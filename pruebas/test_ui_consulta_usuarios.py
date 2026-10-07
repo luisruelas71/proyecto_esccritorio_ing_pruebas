@@ -1,7 +1,11 @@
+import os
 import pytest
 from playwright.sync_api import Page, expect
 
-BASE_URL = "https://localhost:44373/vistas/Usuario/Usuario"
+BASE_URL = (
+    f"{os.getenv('BASE_URL_SCHEME', 'https')}://"
+    f"{os.getenv('BASE_URL_HOST', 'localhost:44373')}/vistas/Usuario/Usuario"
+)
 
 TXT_ID_USUARIO = "input[id$='txtId']"
 BTN_BUSCAR_USUARIO = "input[id$='btnConsulta']"

@@ -1,7 +1,11 @@
+import os
 import pytest
 from playwright.sync_api import Page, expect
 
-BASE_URL = "https://localhost:44373/vistas/Productos/Productos"
+BASE_URL = (
+    f"{os.getenv('BASE_URL_SCHEME', 'https')}://"
+    f"{os.getenv('BASE_URL_HOST', 'localhost:44373')}/vistas/Productos/Productos"
+)
 
 TXT_CLAVE_PRODUCTO = "input[id$='txtClave']"
 BTN_BUSCAR_PRODUCTO = "input[id$='btnConsulta']"
@@ -17,17 +21,17 @@ def test_consulta_producto_exitosa(page: Page):
     page.click(BTN_BUSCAR_PRODUCTO)
     expect(page.locator(TBL_RESULTADO_PRODUCTOS)).to_be_visible()
 
-#def test_consulta_producto_inexistente(page: Page):
-#    page.fill(TXT_CLAVE_PRODUCTO, "9999")
-#    page.click(BTN_BUSCAR_PRODUCTO)
-#    expect(page.locator(LBL_MENSAJE_PRODUCTO)).to_contain_text("No se encuentra el producto registrado")
+def test_consulta_producto_inexistente(page: Page):
+    page.fill(TXT_CLAVE_PRODUCTO, "9999")
+    page.click(BTN_BUSCAR_PRODUCTO)
+    expect(page.locator(LBL_MENSAJE_PRODUCTO)).to_contain_text("No se encuentra el producto registrado")
 
-#def test_consulta_producto_clave_negativa(page: Page):
-#    page.fill(TXT_CLAVE_PRODUCTO, "-4")
-#    page.click(BTN_BUSCAR_PRODUCTO)
-#    expect(page.locator(LBL_MENSAJE_PRODUCTO)).to_contain_text("No se encuentra el producto registrado")
+def test_consulta_producto_clave_negativa(page: Page):
+    page.fill(TXT_CLAVE_PRODUCTO, "-4")
+    page.click(BTN_BUSCAR_PRODUCTO)
+    expect(page.locator(LBL_MENSAJE_PRODUCTO)).to_contain_text("No se encuentra el producto registrado")
 
-#def test_consulta_producto_clave_decimal(page: Page):
-#    page.fill(TXT_CLAVE_PRODUCTO, "1.5")
-#    page.click(BTN_BUSCAR_PRODUCTO)
-#    expect(page.locator(LBL_MENSAJE_PRODUCTO)).to_contain_text("La cadena de entrada no tiene el formato correcto.")
+def test_consulta_producto_clave_decimal(page: Page):
+    page.fill(TXT_CLAVE_PRODUCTO, "1.5")
+    page.click(BTN_BUSCAR_PRODUCTO)
+    expect(page.locator(LBL_MENSAJE_PRODUCTO)).to_contain_text("La cadena de entrada no tiene el formato correcto.")

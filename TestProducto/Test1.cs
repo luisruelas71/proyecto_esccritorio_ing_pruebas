@@ -55,9 +55,8 @@ namespace TestProducto
         {
             ProductoBL productoBL = new ProductoBL();
 
-            bool result = productoBL.validarCantidad(-5);
-
-            Assert.IsTrue(result);
+            Assert.Throws<Exception>(
+                () => productoBL.validarCantidad(-5));
         }
     }
 }
