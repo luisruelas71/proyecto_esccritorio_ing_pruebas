@@ -66,7 +66,7 @@ jobs:
 
           Start-Process `
             -FilePath $iisExpress `
-            -ArgumentList "/path:$webRoot", "/port:44373" `
+            -ArgumentList "/path:$webRoot", "/port:8080" `
             -PassThru
 
       - name: Esperar aplicación web
@@ -94,7 +94,7 @@ jobs:
 
           throw "La aplicación no respondió en $url"
 
-      - name: Ejecutar Pruebas de API (Newman)
+      - name: Ejecutar Pruebas de API
         run: |
           newman run Crud.WebForm/pruebas_humo_api.json --insecure
 
@@ -107,10 +107,3 @@ jobs:
             -v `
             --html=report.html `
             --self-contained-html
-
-      - name: Subir reporte
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: reporte-pruebas
-          path: report.html
