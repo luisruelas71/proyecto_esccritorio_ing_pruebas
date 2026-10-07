@@ -46,8 +46,6 @@ jobs:
         run: |
           python -m pytest pruebas/test_unit_nombre.py pruebas/test_producto_cantidad.py -v
 
-      # Aquí debe instalarse e inicializarse MySQL.
-      # También debe cargarse el esquema y los datos de la base ferreteria.
 
       - name: Iniciar IIS Express
         shell: pwsh
