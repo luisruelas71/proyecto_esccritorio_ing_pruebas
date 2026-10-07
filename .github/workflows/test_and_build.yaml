@@ -34,6 +34,15 @@ jobs:
       - name: Restaurar paquetes .NET
         shell: pwsh
         run: |
+          $packagesDirectory = Join-Path $env:GITHUB_WORKSPACE "packages"
+          Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter packages.config |
+            ForEach-Object {
+              nuget restore $_.FullName -PackagesDirectory $packagesDirectory -NonInteractive
+            }
+          $mysqlAssembly = Join-Path $packagesDirectory "MySql.Data.26.7.0\lib\net462\MySql.Data.dll"
+          if (-not (Test-Path $mysqlAssembly)) {
+            throw "No se restauró MySql.Data.dll en $mysqlAssembly"
+          }
           dotnet restore TestProducto\TestProducto.csproj
 
       - name: Compilar proyectos
