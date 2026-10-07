@@ -58,7 +58,7 @@ jobs:
         shell: pwsh
         run: |
           $iisExpress = "${env:ProgramFiles}\IIS Express\iisexpress.exe"
-          $webRoot = Join-Path$env:GITHUB_WORKSPACE "Crud.WebForm"
+          $webRoot = Join-Path $env:GITHUB_WORKSPACE "Crud.WebForm"
 
           if (-not (Test-Path $iisExpress)) {
             throw "No se encontró IIS Express en $iisExpress"
@@ -66,7 +66,7 @@ jobs:
 
           Start-Process `
             -FilePath $iisExpress `
-            -ArgumentList "/path:$webRoot", "/port:8080" `
+            -ArgumentList "/path:$webRoot", "/port:44373" `
             -PassThru
 
       - name: Esperar aplicación web
