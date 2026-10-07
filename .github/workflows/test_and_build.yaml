@@ -81,6 +81,8 @@ jobs:
           $webRoot = Join-Path $env:GITHUB_WORKSPACE "Crud.WebForm"
           $sourceConfig = Join-Path $env:ProgramFiles "IIS Express\AppServer\applicationhost.config"
           $ciConfig = Join-Path $env:RUNNER_TEMP "applicationhost.config"
+          $iisOutput = Join-Path $env:RUNNER_TEMP "iisexpress.out.log"
+          $iisError = Join-Path $env:RUNNER_TEMP "iisexpress.err.log"
 
           if (-not (Test-Path $iisExpress)) {
             throw "No se encontró IIS Express en $iisExpress"
@@ -125,22 +127,31 @@ jobs:
           }
           $config.Save($ciConfig)
 
-          Start-Process `
+          $iisProcess = Start-Process `
             -FilePath $iisExpress `
             -ArgumentList "/config:$ciConfig", "/site:Crud.WebForm" `
+            -RedirectStandardOutput $iisOutput `
+            -RedirectStandardError $iisError `
             -PassThru
+          Start-Sleep -Seconds 3
+          if ($iisProcess.HasExited) {
+            Write-Host "Salida de IIS Express:"
+            if (Test-Path $iisOutput) { Get-Content $iisOutput }
+            if (Test-Path $iisError) { Get-Content $iisError }
+            throw "IIS Express terminó con código $($iisProcess.ExitCode)"
+          }
 
       - name: Esperar aplicación web
         shell: pwsh
         env:
           WEB_PORT: 44373
         run: |
-          $url = "https://127.0.0.1:$env:WEB_PORT/vistas/Login/Login"
+          $url = "https://localhost:$env:WEB_PORT/vistas/Login/Login"
           $timeout = [DateTime]::UtcNow.AddMinutes(1)
 
           do {
             try {
-              $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3
+              $response = Invoke-WebRequest -Uri $url -UseBasicParsing -SkipCertificateCheck -TimeoutSec 3
               if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
                 Write-Host "La aplicación está disponible."
                 exit 0
@@ -155,12 +166,12 @@ jobs:
 
       - name: Ejecutar Pruebas de API
         run: |
-          newman run Crud.WebForm/pruebas_humo_api.json --insecure --env-var "baseUrl=https://127.0.0.1:44373"
+          newman run Crud.WebForm/pruebas_humo_api.json --insecure --env-var "baseUrl=https://localhost:44373"
 
       - name: Ejecutar pruebas UI
         env:
           BASE_URL_SCHEME: https
-          BASE_URL_HOST: 127.0.0.1:44373
+          BASE_URL_HOST: localhost:44373
         run: |
           python -m pytest `
             pruebas/test_ui_login.py `
