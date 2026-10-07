@@ -28,12 +28,16 @@ jobs:
       - name: Restaurar paquetes .NET
         run: nuget restore Crud.WebForm.slnx
 
-      - name: Compilar aplicación
+      - name: Compilar aplicación y proyectos de prueba
         run: >
           msbuild Crud.WebForm.slnx
           /p:Configuration=Release
           /p:Platform="Any CPU"
           /verbosity:minimal
+
+      - name: Ejecutar Pruebas Unitarias C# (MSTest)
+        run: |
+          dotnet test TestProducto/TestProducto.csproj --configuration Release --no-build
 
       - name: Instalar dependencias Python
         shell: pwsh
@@ -42,16 +46,11 @@ jobs:
           python -m pip install -r pruebas/requirements.txt
           python -m playwright install chromium
 
-      - name: Ejecutar pruebas unitarias
-        run: |
-          python -m pytest pruebas/test_unit_nombre.py pruebas/test_producto_cantidad.py -v
-
-
       - name: Iniciar IIS Express
         shell: pwsh
         run: |
           $iisExpress = "${env:ProgramFiles}\IIS Express\iisexpress.exe"
-          $webRoot = Join-Path $env:GITHUB_WORKSPACE "Crud.WebForm"
+          $webRoot = Join-Path$env:GITHUB_WORKSPACE "Crud.WebForm"
 
           if (-not (Test-Path $iisExpress)) {
             throw "No se encontró IIS Express en $iisExpress"
@@ -59,7 +58,7 @@ jobs:
 
           Start-Process `
             -FilePath $iisExpress `
-            -ArgumentList "/path:$webRoot", "/port:8080" `
+            -ArgumentList "/path:$webRoot", "/port:44373" `
             -PassThru
 
       - name: Esperar aplicación web
@@ -75,7 +74,7 @@ jobs:
                 -UseBasicParsing `
                 -TimeoutSec 5
 
-              if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+              if ($response.StatusCode -ge 200 -and$response.StatusCode -lt 500) {
                 Write-Host "La aplicación está disponible."
                 exit 0
               }
