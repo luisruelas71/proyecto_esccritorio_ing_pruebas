@@ -46,6 +46,14 @@ jobs:
           python -m pip install -r pruebas/requirements.txt
           python -m playwright install chromium
 
+      - name: Configurar Node.js (para Newman)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar Newman
+        run: npm install -g newman
+
       - name: Iniciar IIS Express
         shell: pwsh
         run: |
@@ -85,6 +93,10 @@ jobs:
           } while ([DateTime]::UtcNow -lt $timeout)
 
           throw "La aplicación no respondió en $url"
+
+      - name: Ejecutar Pruebas de API (Newman)
+        run: |
+          newman run Crud.WebForm/pruebas_humo_api.json --insecure
 
       - name: Ejecutar pruebas UI
         run: |
