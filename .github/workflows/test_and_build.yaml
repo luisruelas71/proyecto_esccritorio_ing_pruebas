@@ -34,8 +34,16 @@ jobs:
       - name: Instalar Newman
         run: npm install -g newman
 
-      - name: Buscar archivo de colección de Postman
-        run: Get-ChildItem -Recurse -Filter "*pruebas_humo_api*.json" | Select-Object FullName
+      - name: Iniciar IIS Express (Servidor Local WebForms)
+        run: |
+          $iisExpress = "C:\Program Files\IIS Express\iisexpress.exe"
+          $sitePath = "$env:GITHUB_WORKSPACE\Crud.WebForm"
+          Start-Process $iisExpress -ArgumentList "/path:`"$sitePath`" /port:44373"
+        shell: powershell
+
+      - name: Esperar a que el servidor esté activo
+        run: Start-Sleep -Seconds 5
+        shell: powershell
 
       - name: Ejecutar Pruebas de Postman con Newman
         run: |
