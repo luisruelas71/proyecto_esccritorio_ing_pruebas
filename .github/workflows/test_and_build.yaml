@@ -34,6 +34,9 @@ jobs:
       - name: Instalar Newman
         run: npm install -g newman
 
+      - name: Buscar archivo de colección de Postman
+        run: Get-ChildItem -Recurse -Filter "*pruebas_humo_api*.json" | Select-Object FullName
+
       - name: Ejecutar Pruebas de Postman con Newman
         run: |
           newman run pruebas_humo_api.json --env-var "BASE_URL_SCHEME=https" --env-var "BASE_URL_HOST=localhost:44373" --insecure
