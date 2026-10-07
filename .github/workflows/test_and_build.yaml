@@ -54,7 +54,7 @@ jobs:
       - name: Instalar Newman
         run: npm install -g newman
 
-      - name: Iniciar IIS Express en Puerto 44373 (HTTPS)
+      - name: Iniciar IIS Express
         shell: pwsh
         run: |
           $iisExpress = "${env:ProgramFiles}\IIS Express\iisexpress.exe"
@@ -66,26 +66,25 @@ jobs:
 
           Start-Process `
             -FilePath $iisExpress `
-            -ArgumentList "/path:$webRoot", "/port:44373" `
+            -ArgumentList "/path:$webRoot", "/port:8080" `
             -PassThru
 
       - name: Esperar aplicación web
         shell: pwsh
         run: |
-          [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
-          $url = "https://localhost:44373/vistas/Login/Login"         
-          $timeout = [DateTime]::UtcNow.AddMinutes(2)
+          $url = "http://127.0.0.1:8080/vistas/Login/Login"         
+          $timeout = [DateTime]::UtcNow.AddMinutes(1)
 
           do {
             try {
-              $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5
-              if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+              $response = Invoke-WebRequest -Uri$url -UseBasicParsing -TimeoutSec 3
+              if ($response.StatusCode -ge 200 -and$response.StatusCode -lt 500) {
                 Write-Host "La aplicación está disponible."
                 exit 0
               }
             }
             catch {
-              Start-Sleep -Seconds 3
+              Start-Sleep -Seconds 2
             }
           } while ([DateTime]::UtcNow -lt $timeout)
 
