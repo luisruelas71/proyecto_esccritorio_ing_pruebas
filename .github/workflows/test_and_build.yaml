@@ -20,11 +20,29 @@ jobs:
       - name: Configurar NuGet
         uses: NuGet/setup-nuget@v2
 
+      - name: Configurar .NET para las pruebas MSTest
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Restaurar paquetes NuGet
-        run: nuget restore
+        shell: powershell
+        run: |
+          Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter packages.config |
+            ForEach-Object { nuget restore $_.FullName -PackagesDirectory "$env:GITHUB_WORKSPACE\packages" }
 
       - name: Compilar Solución con MSBuild
-        run: msbuild /p:Configuration=Debug
+        run: msbuild .\Crud.WebForm.slnx /p:Configuration=Debug
+
+      - name: Restaurar proyectos de pruebas
+        run: |
+          dotnet restore .\TestProducto\TestProducto.csproj
+          dotnet restore .\TestProductos\TestProductos.csproj
+
+      - name: Ejecutar pruebas unitarias MSTest
+        run: |
+          dotnet test .\TestProducto\TestProducto.csproj --configuration Debug --no-restore --logger "trx;LogFileName=TestProducto.trx"
+          dotnet test .\TestProductos\TestProductos.csproj --configuration Debug --no-restore --logger "trx;LogFileName=TestProductos.trx"
 
       - name: Configurar Node.js para Newman
         uses: actions/setup-node@v4
@@ -42,9 +60,22 @@ jobs:
         shell: powershell
 
       - name: Esperar a que el servidor esté activo
-        run: Start-Sleep -Seconds 5
+        run: |
+          $deadline = (Get-Date).AddSeconds(30)
+          do {
+            Start-Sleep -Seconds 1
+            try {
+              Invoke-WebRequest -Uri "http://localhost:44373/vistas/Login/Login" -UseBasicParsing -TimeoutSec 5 | Out-Null
+              $ready = $true
+            } catch {
+              $ready = $false
+            }
+          } while (-not $ready -and (Get-Date) -lt $deadline)
+          if (-not $ready) {
+            throw "IIS Express no respondió en el puerto 44373."
+          }
         shell: powershell
 
       - name: Ejecutar Pruebas de Postman con Newman
         run: |
-          newman run crud.webform/pruebas_humo_api.json --env-var "BASE_URL_SCHEME=https" --env-var "BASE_URL_HOST=localhost:44373" --insecure
+          newman run .\Crud.WebForm\pruebas_humo_api.json --env-var "baseUrl=http://localhost:44373"

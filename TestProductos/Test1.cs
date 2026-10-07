@@ -1,4 +1,6 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System;
+using Crud.BusinessLayer;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace TestProductos
 {
@@ -6,9 +8,12 @@ namespace TestProductos
     public sealed class Test1
     {
         [TestMethod]
-        public void TestMethod1()
+        public void RechazaNombreVacio()
         {
-            string result = 
+            ProductoBL productoBL = new ProductoBL();
+
+            Assert.Throws<Exception>(
+                () => productoBL.validarNombre(string.Empty));
         }
     }
 }
