@@ -110,20 +110,19 @@ jobs:
             [void]$site.AppendChild($application)
 
             $bindings = $config.CreateElement("bindings")
-            $binding = $config.CreateElement("binding")
-            $binding.SetAttribute("protocol", "https")
-            $binding.SetAttribute("bindingInformation", "*:44373:localhost")
-            [void]$bindings.AppendChild($binding)
             [void]$site.AppendChild($bindings)
             [void]$config.configuration.'system.applicationHost'.sites.AppendChild($site)
           } else {
             $site.application.virtualDirectory.physicalPath = $webRoot
           }
 
-          $httpsBinding = $site.bindings.binding |
-            Where-Object { $_.protocol -eq "https" -and $_.bindingInformation -like "*:44373:*" }
-          if ($null -eq $httpsBinding) {
-            throw "No existe el binding HTTPS *:44373:localhost para Crud.WebForm"
+          $httpBinding = $site.bindings.binding |
+            Where-Object { $_.protocol -eq "http" -and $_.bindingInformation -eq "*:$($env:WEB_PORT):localhost" }
+          if ($null -eq $httpBinding) {
+            $binding = $config.CreateElement("binding")
+            $binding.SetAttribute("protocol", "http")
+            $binding.SetAttribute("bindingInformation", "*:$($env:WEB_PORT):localhost")
+            [void]$site.bindings.AppendChild($binding)
           }
           $config.Save($ciConfig)
 
@@ -146,7 +145,7 @@ jobs:
         env:
           WEB_PORT: 44373
         run: |
-          $url = "https://localhost:$env:WEB_PORT/vistas/Login/Login"
+          $url = "http://localhost:$env:WEB_PORT/vistas/Login/Login"
           $timeout = [DateTime]::UtcNow.AddMinutes(1)
 
           do {
@@ -166,11 +165,11 @@ jobs:
 
       - name: Ejecutar Pruebas de API
         run: |
-          newman run Crud.WebForm/pruebas_humo_api.json --insecure --env-var "baseUrl=https://localhost:44373"
+          newman run Crud.WebForm/pruebas_humo_api.json --env-var "baseUrl=http://localhost:44373"
 
       - name: Ejecutar pruebas UI
         env:
-          BASE_URL_SCHEME: https
+          BASE_URL_SCHEME: http
           BASE_URL_HOST: localhost:44373
         run: |
           python -m pytest `
