@@ -39,6 +39,8 @@ jobs:
             ForEach-Object {
               nuget restore $_.FullName -PackagesDirectory $packagesDirectory -NonInteractive
             }
+          nuget install MySql.Data -Version 26.7.0 `
+            -OutputDirectory $packagesDirectory -NonInteractive
           $mysqlAssembly = Join-Path $packagesDirectory "MySql.Data.26.7.0\lib\net462\MySql.Data.dll"
           if (-not (Test-Path $mysqlAssembly)) {
             throw "No se restauró MySql.Data.dll en $mysqlAssembly"
@@ -73,26 +75,67 @@ jobs:
       - name: Iniciar IIS Express
         shell: pwsh
         env:
-          WEB_PORT: 8080
+          WEB_PORT: 44373
         run: |
           $iisExpress = "${env:ProgramFiles}\IIS Express\iisexpress.exe"
           $webRoot = Join-Path $env:GITHUB_WORKSPACE "Crud.WebForm"
+          $sourceConfig = Join-Path $env:ProgramFiles "IIS Express\AppServer\applicationhost.config"
+          $ciConfig = Join-Path $env:RUNNER_TEMP "applicationhost.config"
 
           if (-not (Test-Path $iisExpress)) {
             throw "No se encontró IIS Express en $iisExpress"
           }
+          if (-not (Test-Path $sourceConfig)) {
+            throw "No se encontró la configuración de IIS Express en $sourceConfig"
+          }
+
+          [xml]$config = Get-Content -Raw $sourceConfig
+          $site = $config.configuration.'system.applicationHost'.sites.site |
+            Where-Object { $_.name -eq "Crud.WebForm" }
+          if ($null -eq $site) {
+            $site = $config.CreateElement("site")
+            $site.SetAttribute("name", "Crud.WebForm")
+            $site.SetAttribute("id", "2")
+            $site.SetAttribute("serverAutoStart", "true")
+
+            $application = $config.CreateElement("application")
+            $application.SetAttribute("path", "/")
+            $application.SetAttribute("applicationPool", "Clr4IntegratedAppPool")
+            $virtualDirectory = $config.CreateElement("virtualDirectory")
+            $virtualDirectory.SetAttribute("path", "/")
+            $virtualDirectory.SetAttribute("physicalPath", $webRoot)
+            [void]$application.AppendChild($virtualDirectory)
+            [void]$site.AppendChild($application)
+
+            $bindings = $config.CreateElement("bindings")
+            $binding = $config.CreateElement("binding")
+            $binding.SetAttribute("protocol", "https")
+            $binding.SetAttribute("bindingInformation", "*:44373:localhost")
+            [void]$bindings.AppendChild($binding)
+            [void]$site.AppendChild($bindings)
+            [void]$config.configuration.'system.applicationHost'.sites.AppendChild($site)
+          } else {
+            $site.application.virtualDirectory.physicalPath = $webRoot
+          }
+
+          $httpsBinding = $site.bindings.binding |
+            Where-Object { $_.protocol -eq "https" -and $_.bindingInformation -like "*:44373:*" }
+          if ($null -eq $httpsBinding) {
+            throw "No existe el binding HTTPS *:44373:localhost para Crud.WebForm"
+          }
+          $config.Save($ciConfig)
 
           Start-Process `
             -FilePath $iisExpress `
-            -ArgumentList "/path:$webRoot", "/port:$env:WEB_PORT" `
+            -ArgumentList "/config:$ciConfig", "/site:Crud.WebForm" `
             -PassThru
 
       - name: Esperar aplicación web
         shell: pwsh
         env:
-          WEB_PORT: 8080
+          WEB_PORT: 44373
         run: |
-          $url = "http://127.0.0.1:$env:WEB_PORT/vistas/Login/Login"
+          $url = "https://127.0.0.1:$env:WEB_PORT/vistas/Login/Login"
           $timeout = [DateTime]::UtcNow.AddMinutes(1)
 
           do {
@@ -112,12 +155,12 @@ jobs:
 
       - name: Ejecutar Pruebas de API
         run: |
-          newman run Crud.WebForm/pruebas_humo_api.json --insecure --env-var "baseUrl=http://127.0.0.1:8080"
+          newman run Crud.WebForm/pruebas_humo_api.json --insecure --env-var "baseUrl=https://127.0.0.1:44373"
 
       - name: Ejecutar pruebas UI
         env:
-          BASE_URL_SCHEME: http
-          BASE_URL_HOST: 127.0.0.1:8080
+          BASE_URL_SCHEME: https
+          BASE_URL_HOST: 127.0.0.1:44373
         run: |
           python -m pytest `
             pruebas/test_ui_login.py `

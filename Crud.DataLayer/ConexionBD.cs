@@ -5,6 +5,7 @@ namespace Crud.DataLayer
 {
     public class ConexionBD
     {
+        // Cadena de conexión a la base de datos MySQL
         string connectionString = "Server=localhost;Port=3306;Database=ferreteria;Uid=root;Pwd=Root;SslMode=None;AllowPublicKeyRetrieval=True;";
         public MySqlConnection ObtenerConexion()
         {
