@@ -19,6 +19,8 @@ def test_login_exitoso(page: Page):
     page.click(BTN_INGRESAR)
     expect(page).to_have_url(re.compile(r"/vistas/Modulos/Modulos"), timeout=7000)
 
+
+    
 #def test_login_usuario_incorrecto(page: Page):
 #    page.fill(TXT_USUARIO, "Admin2")
 #    page.fill(TXT_PASSWORD, "admin124")
