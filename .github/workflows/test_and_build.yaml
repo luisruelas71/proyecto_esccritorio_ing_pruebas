@@ -27,6 +27,15 @@ jobs:
           pip install -r pruebas/requirements.txt
           playwright install
 
+      
+
+      - name: Levantar servidor y ejecutar pruebas
+        shell: cmd
+        run: |
+          start mvn package
+          timeout /t 10
+          python -m pytest -v --cov=. --cov-report=html --html=report.html
+          
       - name: Iniciar Servidor Web local (Maven / Tomcat / etc.)
         run: |
           # Ejemplo usando Maven (si tu proyecto es Java web con Maven):
