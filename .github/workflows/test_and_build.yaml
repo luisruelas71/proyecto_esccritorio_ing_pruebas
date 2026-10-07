@@ -36,4 +36,4 @@ jobs:
 
       - name: Ejecutar Pruebas de Postman con Newman
         run: |
-          newman run pruebas_humo_api.json --env-var "BASE_URL_SCHEME=https" --env-var "BASE_URL_HOST=localhost:44373" --insecure
+          newman run TestProductos/pruebas_humo_api.json --env-var "BASE_URL_SCHEME=https" --env-var "BASE_URL_HOST=localhost:44373" --insecure
