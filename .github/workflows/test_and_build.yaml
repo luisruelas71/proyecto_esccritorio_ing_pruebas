@@ -1,43 +1,51 @@
-name: test_and_build
+name: test-and-build
 
-on:
-  push:
-    branches: [ "main" ]
-
-
-permissions:
-  contents: read
+on: [push, pull_request]
 
 jobs:
-  test_and_build:
-
-    runs-on: windows-latest
+  build-and-test:
+    runs-on: windows-latest # O ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout del código
         uses: actions/checkout@v4
+
+      - name: Configurar Java (JDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17' # Ajusta la versión de Java que uses
 
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: '3.14.8'
 
-      - name: Install dependencies
+      - name: Instalar dependencias de Python y Playwright
         run: |
           python -m pip install --upgrade pip
           pip install -r pruebas/requirements.txt
           playwright install
 
-      - name: Iniciar servidor IIS Express
-        shell: powershell
+      - name: Iniciar Servidor Web local (Maven / Tomcat / etc.)
         run: |
-          $rutaProyecto = "$env:GITHUB_WORKSPACE\Crud.WebForm"
-           # Inicia IIS Express en segundo plano apuntando al puerto 8080
-          Start-Process "C:\Program Files\IIS Express\iisexpress.exe" -ArgumentList "/path:$rutaProyecto /port:8080"  
-           # Damos unos segundos para que el servidor encienda por completo
-          Start-Sleep -Seconds 5
+          # Ejemplo usando Maven (si tu proyecto es Java web con Maven):
+          start mvn spring-boot:run
+          # O el comando que utilices para arrancar tu servidor localmente en el puerto 8080
+        shell: cmd
 
-      - name: Test with pytest
+      - name: Esperar a que el servidor responda
+        run: |
+          # Bucle de espera para asegurar que el puerto 8080 esté activo antes de correr las pruebas
+          powershell -Command "while (1) { try { $response = Invoke-WebRequest -Uri 'http://localhost:8080' -UseBasicParsing; if ($response.StatusCode -eq 200) { break } } catch { Start-Sleep -Seconds 3 } }"
+
+      - name: Ejecutar pruebas con Pytest
         run: |
           python -m pytest -v --cov=. --cov-report=html --html=report.html
-    
+
+      - name: Subir reporte de pruebas como artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-pruebas
+          path: report.html
