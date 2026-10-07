@@ -17,7 +17,7 @@ jobs:
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14.8"
 
       - name: Configurar MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -26,27 +26,18 @@ jobs:
         uses: NuGet/setup-nuget@v2
 
       - name: Restaurar paquetes .NET
-        run: nuget restore Crud.WebForm.slnx
+        run: nuget restore Crud.WebForm.sln
 
-      - name: Compilar aplicación y proyectos de prueba
-        run: >
-          msbuild Crud.WebForm.slnx
-          /p:Configuration=Release
-          /p:Platform="Any CPU"
-          /verbosity:minimal
-
-      - name: Ejecutar Pruebas Unitarias C# (MSTest)
+      - name: Ejecutar Pruebas Unitarias
         run: |
           dotnet test TestProducto/TestProducto.csproj --configuration Release --no-build
 
       - name: Instalar dependencias Python
         shell: pwsh
         run: |
-          python -m pip install --upgrade pip
           python -m pip install -r pruebas/requirements.txt
-          python -m playwright install chromium
-
-      - name: Configurar Node.js (para Newman)
+ 
+      - name: Configurar Node.js 
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -66,13 +57,13 @@ jobs:
 
           Start-Process `
             -FilePath $iisExpress `
-            -ArgumentList "/path:$webRoot", "/port:8080" `
+            -ArgumentList "/path:$webRoot", "/port:44373" `
             -PassThru
 
       - name: Esperar aplicación web
         shell: pwsh
         run: |
-          $url = "http://127.0.0.1:8080/vistas/Login/Login"         
+          $url = "http://127.0.0.1:44373/vistas/Login/Login"         
           $timeout = [DateTime]::UtcNow.AddMinutes(1)
 
           do {
@@ -103,10 +94,3 @@ jobs:
             -v `
             --html=report.html `
             --self-contained-html
-
-      - name: Subir reporte
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: reporte-pruebas
-          path: report.html
